@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatAxisTick, formatValue } from "./format";
+import { formatAxisTick, formatParts, formatValue } from "./format";
 
 /** Troca os espaços inseparáveis por espaços normais, para o teste ser legível. */
 const plain = (text: string) => text.replace(/\u00A0/g, " ");
@@ -45,5 +45,23 @@ describe("formatAxisTick", () => {
     expect(plain(formatAxisTick(15_000, "number"))).toBe("15 mil");
     expect(plain(formatAxisTick(12.5, "percent"))).toBe("12,5 %");
     expect(plain(formatAxisTick(60, "years"))).toBe("60");
+  });
+});
+
+describe("formatParts", () => {
+  it("separa o número da unidade", () => {
+    expect(formatParts(122_174_889_423, "usd")).toEqual({
+      amount: "122,2",
+      unit: "mil\u00A0milhões de\u00A0US$",
+    });
+    expect(formatParts(20.162, "percent")).toEqual({ amount: "20,2", unit: "%" });
+    expect(formatParts(39_040_039, "number")).toEqual({ amount: "39,0", unit: "milhões" });
+    expect(formatParts(850_000, "number").unit).toBe("");
+  });
+
+  it("só deixa partir a linha antes de 'de', nunca dentro de 'mil milhões'", () => {
+    const text = formatValue(122_174_889_423, "usd");
+    expect(text).toBe("122,2\u00A0mil\u00A0milhões de\u00A0US$");
+    expect(text.split(" ")).toHaveLength(2);
   });
 });

@@ -16,31 +16,51 @@ function trimmed(value: number): string {
   return decimal(value, Math.abs(value % 1) < 1e-9 ? 0 : 1);
 }
 
-/** Escreve um valor de acordo com o tipo de indicador, em português. */
-export function formatValue(value: number, format: ValueFormat): string {
+/** Um valor dividido em número e unidade, para se poderem desenhar de forma diferente. */
+export interface ValueParts {
+  amount: string;
+  /** Vazio quando o valor não tem unidade. */
+  unit: string;
+}
+
+/**
+ * Divide um valor em número e unidade, em português.
+ * Dentro da unidade os espaços são inseparáveis, menos antes de "de",
+ * para o texto poder passar à linha seguinte sem cortar "mil milhões".
+ */
+export function formatParts(value: number, format: ValueFormat): ValueParts {
   const abs = Math.abs(value);
 
   switch (format) {
     case "percent":
-      return `${decimal(value, 1)}${NBSP}%`;
+      return { amount: decimal(value, 1), unit: "%" };
     case "years":
-      return `${decimal(value, 1)}${NBSP}anos`;
+      return { amount: decimal(value, 1), unit: "anos" };
     case "usd":
       if (abs >= 1e12) {
-        return `${decimal(value / 1e12, 2)}${NBSP}biliões${NBSP}de${NBSP}US$`;
+        return { amount: decimal(value / 1e12, 2), unit: `biliões de${NBSP}US$` };
       }
       if (abs >= 1e9) {
-        return `${decimal(value / 1e9, 1)}${NBSP}mil${NBSP}milhões${NBSP}de${NBSP}US$`;
+        return {
+          amount: decimal(value / 1e9, 1),
+          unit: `mil${NBSP}milhões de${NBSP}US$`,
+        };
       }
       if (abs >= 1e6) {
-        return `${decimal(value / 1e6, 1)}${NBSP}milhões${NBSP}de${NBSP}US$`;
+        return { amount: decimal(value / 1e6, 1), unit: `milhões de${NBSP}US$` };
       }
-      return `${decimal(value, 0)}${NBSP}US$`;
+      return { amount: decimal(value, 0), unit: "US$" };
     case "number":
       return abs >= 1e6
-        ? `${decimal(value / 1e6, 1)}${NBSP}milhões`
-        : decimal(value, 0);
+        ? { amount: decimal(value / 1e6, 1), unit: "milhões" }
+        : { amount: decimal(value, 0), unit: "" };
   }
+}
+
+/** Escreve um valor de acordo com o tipo de indicador, em português. */
+export function formatValue(value: number, format: ValueFormat): string {
+  const { amount, unit } = formatParts(value, format);
+  return unit ? `${amount}${NBSP}${unit}` : amount;
 }
 
 /** Versão curta, para os números dos eixos dos gráficos. */

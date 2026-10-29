@@ -8,11 +8,21 @@ import {
   useReducedMotion,
 } from "motion/react";
 import { useRef, useState } from "react";
-import { IndicatorChart } from "@/components/indicator-chart";
+import { CountryPicker } from "@/components/country-picker";
+import { IndicatorChart, type ChartLine } from "@/components/indicator-chart";
+import { LatestBars } from "@/components/latest-bars";
 import { Sparkline } from "@/components/sparkline";
-import { formatValue } from "@/lib/format";
+import {
+  buildChartRows,
+  COUNTRY_NAMES,
+  latestValues,
+  NEIGHBOR_STYLES,
+  rankOf,
+  toggleCountry,
+} from "@/lib/compare";
+import { formatParts, formatValue } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { HOME_COUNTRY } from "@/lib/worldbank/countries";
+import { COMPARISON_COUNTRIES, HOME_COUNTRY } from "@/lib/worldbank/countries";
 import type { IndicatorData } from "@/lib/worldbank/load";
 import { latestPoint, valuedPoints } from "@/lib/worldbank/series";
 import type { Series, ValuedPoint } from "@/lib/worldbank/types";
@@ -39,14 +49,29 @@ function toEntry(item: IndicatorData): Entry {
   return { item, angola, latest: angola ? latestPoint(angola) : null };
 }
 
+function rankText(position: number, total: number): string {
+  if (position === 1) return "Angola tem o valor mais alto";
+  if (position === total) return "Angola tem o valor mais baixo";
+  return `Angola tem o ${position}.º valor mais alto`;
+}
+
 interface DetailProps {
   entry: Entry;
   period: Period;
   onPeriodChange: (period: Period) => void;
+  compared: readonly string[];
+  onToggleCountry: (code: string) => void;
 }
 
-function Detail({ entry, period, onPeriodChange }: DetailProps) {
+function Detail({
+  entry,
+  period,
+  onPeriodChange,
+  compared,
+  onToggleCountry,
+}: DetailProps) {
   const { indicator } = entry.item;
+  const allSeries = entry.item.status === "ok" ? entry.item.series : [];
   const points = entry.angola ? valuedPoints(entry.angola) : [];
 
   if (points.length === 0) {
@@ -65,12 +90,56 @@ function Detail({ entry, period, onPeriodChange }: DetailProps) {
   }
 
   const lastYear = points[points.length - 1].year;
-  const visible =
+  const fromYear =
     period === "all"
-      ? points
-      : points.filter((point) => point.year > lastYear - Number(period));
+      ? Number.NEGATIVE_INFINITY
+      : lastYear - Number(period) + 1;
+  const visible = points.filter((point) => point.year >= fromYear);
   const first = visible[0];
   const last = visible[visible.length - 1];
+  const parts = formatParts(last.value, indicator.format);
+
+  // As linhas do gráfico: Angola e os países escolhidos, pela ordem da escolha.
+  const lines: ChartLine[] = [
+    {
+      code: HOME_COUNTRY.code,
+      name: HOME_COUNTRY.name,
+      color: "var(--angola)",
+      home: true,
+    },
+    ...compared.flatMap((code, index) =>
+      allSeries.some((s) => s.countryCode === code)
+        ? [
+            {
+              code,
+              name: COUNTRY_NAMES[code] ?? code,
+              color: NEIGHBOR_STYLES[index].color,
+              dash: NEIGHBOR_STYLES[index].dash,
+              home: false,
+            },
+          ]
+        : [],
+    ),
+  ];
+  const chartSeries = lines.flatMap((line) => {
+    const series = allSeries.find((s) => s.countryCode === line.code);
+    return series ? [series] : [];
+  });
+  const rows = buildChartRows(chartSeries, fromYear);
+
+  const neighborOptions = COMPARISON_COUNTRIES.filter((country) =>
+    allSeries.some((s) => s.countryCode === country.code),
+  );
+
+  const latest = latestValues(allSeries);
+  const rank = rankOf(HOME_COUNTRY.code, latest);
+  const latestSorted = [...latest].sort((a, b) =>
+    a.code === HOME_COUNTRY.code
+      ? -1
+      : b.code === HOME_COUNTRY.code
+        ? 1
+        : b.value - a.value,
+  );
 
   return (
     <m.div
@@ -86,11 +155,18 @@ function Detail({ entry, period, onPeriodChange }: DetailProps) {
         {indicator.description}
       </p>
 
-      <p className="mt-6 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className="font-heading text-4xl font-semibold tabular-nums sm:text-5xl">
-          {formatValue(last.value, indicator.format)}
+      <p className="mt-6 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <span className="font-heading text-5xl font-semibold tabular-nums sm:text-6xl">
+          {parts.amount}
         </span>
-        <span className="tabular-nums text-muted-foreground">em {last.year}</span>
+        {parts.unit ? (
+          <span className="text-xl font-medium text-muted-foreground">
+            {parts.unit}
+          </span>
+        ) : null}
+        <span className="ml-1 tabular-nums text-muted-foreground">
+          em {last.year}
+        </span>
       </p>
       {first.year !== last.year ? (
         <p className="mt-2 max-w-prose tabular-nums text-muted-foreground">
@@ -120,11 +196,48 @@ function Detail({ entry, period, onPeriodChange }: DetailProps) {
         ))}
       </fieldset>
 
+      {neighborOptions.length > 0 ? (
+        <CountryPicker
+          options={neighborOptions}
+          selected={compared}
+          onToggle={onToggleCountry}
+        />
+      ) : null}
+
       <div className="mt-4">
-        <IndicatorChart points={visible} indicator={indicator} />
+        <IndicatorChart
+          rows={rows}
+          lines={lines}
+          indicator={indicator}
+          homeLast={last}
+        />
       </div>
 
-      <p className="mt-3 text-sm text-muted-foreground">
+      {latest.length > 1 ? (
+        <section className="mt-10" aria-labelledby={`barras-${indicator.slug}`}>
+          <h3
+            id={`barras-${indicator.slug}`}
+            className="font-heading text-xl font-bold text-angola"
+          >
+            Como Angola se compara
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Último valor disponível de cada país.
+            {rank
+              ? ` ${rankText(rank.position, rank.total)} entre ${rank.total} países.`
+              : ""}
+          </p>
+          <div className="mt-5">
+            <LatestBars
+              entries={latestSorted}
+              homeCode={HOME_COUNTRY.code}
+              format={indicator.format}
+            />
+          </div>
+        </section>
+      ) : null}
+
+      <p className="mt-8 text-sm text-muted-foreground">
         Fonte: Banco Mundial, indicador {indicator.id}.
       </p>
     </m.div>
@@ -146,6 +259,7 @@ export function Dashboard({ data }: DashboardProps) {
     firstAvailable?.item.indicator.id ?? "",
   );
   const [period, setPeriod] = useState<Period>("20");
+  const [compared, setCompared] = useState<string[]>([]);
 
   const selected =
     entries.find((entry) => entry.item.indicator.id === selectedId) ??
@@ -175,6 +289,10 @@ export function Dashboard({ data }: DashboardProps) {
               entry={selected}
               period={period}
               onPeriodChange={setPeriod}
+              compared={compared}
+              onToggleCountry={(code) =>
+                setCompared((current) => toggleCountry(current, code))
+              }
             />
           </div>
 
@@ -198,17 +316,17 @@ export function Dashboard({ data }: DashboardProps) {
                     )}
                   >
                     <span>
-                      <span className="block font-medium">
-                        {indicator.label}
-                      </span>
-                      {latest ? (
-                        <span className="block tabular-nums">
-                          <span className="text-lg font-semibold">
-                            {formatValue(latest.value, indicator.format)}
-                          </span>{" "}
-                          <span className="text-sm text-muted-foreground">
+                      <span className="flex items-baseline gap-2">
+                        <span className="font-medium">{indicator.label}</span>
+                        {latest ? (
+                          <span className="text-sm tabular-nums text-muted-foreground">
                             em {latest.year}
                           </span>
+                        ) : null}
+                      </span>
+                      {latest ? (
+                        <span className="block break-words text-lg font-semibold tabular-nums">
+                          {formatValue(latest.value, indicator.format)}
                         </span>
                       ) : (
                         <span className="block text-sm text-muted-foreground">
