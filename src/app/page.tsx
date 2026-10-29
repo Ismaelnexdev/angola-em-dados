@@ -1,7 +1,9 @@
 import { Dashboard } from "@/components/dashboard";
 import { loadDashboardData } from "@/lib/worldbank/load";
 
-export const revalidate = 86400;
+// A página é regenerada de hora a hora. Os pedidos à API têm cache de 24 horas,
+// por isso a API é consultada uma vez por dia, mas uma falha corrige-se na hora seguinte.
+export const revalidate = 3600;
 
 export default async function Home() {
   const data = await loadDashboardData();
