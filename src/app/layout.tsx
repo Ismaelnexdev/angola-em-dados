@@ -13,10 +13,24 @@ const plex = IBM_Plex_Sans({
   weight: ["400", "500", "600"],
 });
 
+const SITE_URL = "https://angola-em-dados.vercel.app";
+const TITLE = "Angola em dados | Indicadores públicos do Banco Mundial";
+const DESCRIPTION =
+  "Economia, população, emprego e acesso a serviços em Angola, com a evolução ao longo dos anos e a comparação com os países vizinhos.";
+
 export const metadata: Metadata = {
-  title: "Angola em dados | Indicadores públicos do Banco Mundial",
-  description:
-    "Economia, população, emprego e acesso a serviços em Angola, com a evolução ao longo dos anos e a comparação com os países vizinhos.",
+  metadataBase: new URL(SITE_URL),
+  title: TITLE,
+  description: DESCRIPTION,
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    locale: "pt_PT",
+    siteName: "Angola em dados",
+    title: TITLE,
+    description: DESCRIPTION,
+    url: "/",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
