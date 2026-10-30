@@ -2,7 +2,7 @@
 
 Painel interativo com a evolução de Angola em indicadores públicos do Banco Mundial: economia, população, emprego e acesso a serviços. Mostra cada indicador ao longo dos anos e compara Angola com países vizinhos.
 
-**Demo:** _(link a acrescentar depois de publicar)_
+**Demo:** _(https://angola-em-dados.vercel.app/)_
 
 [![CI](https://github.com/Ismaelnexdev/angola-em-dados/actions/workflows/ci.yml/badge.svg)](https://github.com/Ismaelnexdev/angola-em-dados/actions/workflows/ci.yml)
 [![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-green.svg)](LICENSE)
